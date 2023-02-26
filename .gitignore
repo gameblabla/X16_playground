@@ -1,5 +1,11 @@
 # Executables
 *.prg
+*.o
+*.gif
+*.pal
+*.raw
+game_src/vload_test.s
+*.raw.pal
 
 # Intermediate assembly files
 *.s
