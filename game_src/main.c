@@ -1,10 +1,16 @@
+/*
+ * Change (y << 7) + (y << 5) accordingly if you are using 320x240 mode or even 640x480.
+*/
+
 #include <cx16.h>
 #include <stdio.h>
 #include <stdint.h>
 #include "vera.h"
 #include "vload.h"
 
+/* Global variables used for the macros */
 static uint8_t x, y;
+static uint16_t addr;
 
 #define SD_DEV      1
 #define HOST_DEV    8
@@ -29,8 +35,6 @@ void __fastcall__ clear_screen(void);
     *(char*)0x9f22 = VERA_INC_0 | (bank); \
     *(char*)0x9f23 = (data); \
 } while (0)
-
-uint16_t addr;
 
 void copyBankedRAMToVRAM(unsigned char startMemBank, unsigned char vramBank, unsigned short vramAddr, unsigned long length, unsigned short startingImageAddr) {
     unsigned long remaining;
@@ -92,8 +96,30 @@ void copyBankedRAMToVRAM(unsigned char startMemBank, unsigned char vramBank, uns
 		} while (--y != y1); \
 	} while (0)
 
+
+#define DRAW_RECTANGLE(x1, x2, y1, y2, color) \
+	do { \
+		x = x2; \
+		y = y2; \
+		DRAW_LINE_HORIZONTAL(x1, x2, y1, color); \
+		DRAW_LINE_HORIZONTAL(x1, x2, y1, color); \
+		do { \
+			x = x2; \
+			addr = (y << 7) + (y << 5); \
+			*(char*)0x9f20 = ((unsigned char)((addr + x1) & 0xFF)); \
+			*(char*)0x9f21 = ((unsigned char)(((addr + x1) >> 8))); \
+			*(char*)0x9f22 = VERA_INC_1 | (0); \
+			*(char*)0x9f23 = (color); \
+			do { \
+				*(char*)0x9f20 = ((unsigned char)((addr + x) & 0xFF)); \
+				*(char*)0x9f21 = ((unsigned char)(((addr + x) >> 8))); \
+				*(char*)0x9f23 = (color); \
+			} while (--x != x1); \
+		} while (--y != y1 + 1); \
+	} while (0)
+
 #define SET_PIXEL(x1, y1, c) my_vpoke(0, (y1 << 7) + (y1 << 5) + x1, c);
-   
+
 void main()
 {
 	uint16_t i;
@@ -104,7 +130,7 @@ void main()
     VERA.display.hscale = SCALE_4x;
     VERA.display.vscale = SCALE_4x;
     VERA.layer0.config = 0x0;  // Disable Layer 0
-    VERA.layer1.config = LAYER_CONFIG_8BPP | LAYER_CONFIG_8BPP | LAYER_CONFIG_BITMAP ;         // 128x64 map, color depth 1
+    VERA.layer1.config = LAYER_CONFIG_8BPP | LAYER_CONFIG_BITMAP ;         // 128x64 map, color depth 1
     VERA.layer1.mapbase = MAP_BASE_ADDR(0x0);                                       // Map base at 0x00000
     VERA.layer1.tilebase = 0;  // Tile base at 0x10000, 8x8 tiles
     videomode(VIDEOMODE_40x30);
@@ -123,14 +149,14 @@ void main()
 	for (y = 0; y < 240; y++) {
 		addr = (y << 7) + (y << 5);
 		for (x = 0; x < 160; x++) {
-			my_vpoke(0, addr + x, 5);
+			my_vpoke(0, addr + x, 10);
 		}
 	}
     
     // Slower Pixel routine
 	for (y = 0; y < 240; y++) {
 		for (x = 0; x < 160; x++) {
-			my_vpoke(0, (uint16_t)y * 160 + x, 10);
+			my_vpoke(0, (uint16_t)y * 160 + x, 3);
 		}
 	}
 	
@@ -139,8 +165,10 @@ void main()
 	
 	// Clearing screen with routine
 	for (y = 0; y < 240; y++) {
-		DRAW_LINE_HORIZONTAL(0, 160, y, 10);
+		DRAW_LINE_HORIZONTAL(0, 160, y, 2);
 	}
+	
+	DRAW_RECTANGLE(0, 40, 0, 40, 5);
 	
 	/*__asm__("stz $9F25");             // Set CTRL to 0
     __asm__("stz $9F20");             // Set primary address low byte to 0x0000

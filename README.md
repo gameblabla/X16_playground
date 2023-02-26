@@ -1,7 +1,7 @@
 # X16 Playground
 
 This relies on libX16 for talking to the VERA chip and doing stuff on the Commander X16.
-This tests several things, like pixel drawing, line drawing, clearing screen and also has a function for copying memory to VRAM (thanks Mark-BugSlayer on Discord)
+This tests several things, like pixel drawing, line drawing, rectangle drawing, clearing screen and also has a function for copying memory to VRAM (thanks Mark-BugSlayer on Discord)
 
 Use image2binary from https://github.com/TurboVega/image2binary to convert the image to their respective palette and RAW image.
 
