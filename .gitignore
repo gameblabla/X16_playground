@@ -6,6 +6,8 @@
 *.raw
 game_src/vload_test.s
 *.raw.pal
+chip8/ROM.BIN
+chip8/*.ch8
 
 # Intermediate assembly files
 *.s

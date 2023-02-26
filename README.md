@@ -5,6 +5,11 @@ This tests several things, like pixel drawing, line drawing, rectangle drawing, 
 
 Use image2binary from https://github.com/TurboVega/image2binary to convert the image to their respective palette and RAW image.
 
+# Programs
+
+- CHIP8 emulator (No input for now)
+- Test program
+
 # Why
 
 The X16 supports a bitmapped 8bpp mode along with the following resolutions:
