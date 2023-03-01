@@ -14,7 +14,28 @@ static uint16_t addr;
 #define SD_DEV      1
 #define HOST_DEV    8
 
+/* Reqyures clearscreen.s and joystick.s */
 void __fastcall__ clear_screen(void);
+
+/* JOYSTICK DEFS */
+
+#define JOY_DPAD_UP 0x8
+#define JOY_DPAD_DOWN 0x4
+#define JOY_DPAD_LEFT 0x2
+#define JOY_DPAD_RIGHT 0x1
+
+#define JOY_B 0x80
+#define JOY_A 0x8000
+#define JOY_Y 0x40
+#define JOY_X 0x4000
+
+#define JOY_LEFTSHOULDER 0x2000
+#define JOY_RIGHTSHOULDER 0x1000
+
+#define JOY_CON_START 0x10
+#define JOY_CON_SELECT 0x20
+
+extern unsigned int joystick_get(unsigned char joy_num);
 
 #define POKE(addr,val)     (*(volatile unsigned char*) (addr) = (val))
 #define POKEW(addr,val)    (*(volatile unsigned*) (addr) = (val))

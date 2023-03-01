@@ -133,51 +133,95 @@ void beep()
 }
 
 uint8_t maxrom[4096 - 0x200];
+uint32_t joy[2];
 
-/* This is done to work around an issue with the default functions 
- * chopping off the first 2 bytes from files.
- * setlfs needs to be set to 2 for that NOT to happen.
-*/
-uint16_t myload_file(const char *fileName, uint8_t device, uint16_t addr)
+/* This is done to work around an issue with the default functions chopping off the first 2 bytes from files.
+ * setlfs needs to be set to 2 for that NOT to happen. */
+uint16_t myload_file(const char *fileName, uint16_t addr)
 {
-    cbm_k_setlfs(1,device,2);
+	uint16_t size;
+    cbm_k_setlfs(1,HOST_DEV,2);
     cbm_k_setnam(fileName);
-    return(cbm_k_load(0,addr) - addr);    
+    size = cbm_k_load(0,addr) - addr;
+    // If file loading failed then let's try from SD instead
+    if (size == 0)
+    {
+		cbm_k_setlfs(1,SD_DEV,2);
+		cbm_k_setnam(fileName);
+		size = cbm_k_load(0,addr) - addr;
+	}
+    return size;
 }
 
+void Controls_chip8();
+
+#define KEY_CHIP8_LEFT 0
+#define KEY_CHIP8_RIGHT 1
+#define KEY_CHIP8_UP 2
+#define KEY_CHIP8_DOWN 3
+#define KEY_CHIP8_A 4
+#define KEY_CHIP8_B 5
+#define KEY_CHIP8_X 5
+#define KEY_CHIP8_Y 6
+uint8_t KEY_DEFINE[15];
+
+char str[18];
+ 
 int main(int argc, char** argv) 
 {
     uint16_t result = 0;
     uint16_t size = 0;
     
-    if (argc > 1)
-    {
-		size = myload_file(argv[1], HOST_DEV, maxrom);
-	}
-	else
-	{
-		size = myload_file("rom.bin", HOST_DEV, maxrom);
-	}
-	
+    puts("CHIP-8 Emulator. Port by Gameblabla. Build 01");
+	puts("Enter ROM filename (Try lowercase if this doesn't work) :");
+	gets(str);
+    printf("ROM is %s\n", str);
+    
+	size = myload_file(str, maxrom);
 	if (size == 0)
 	{
-		// If it failed, load from SD instead
-		if (argc > 1)
-		{
-			size = myload_file(argv[1], SD_DEV, maxrom);
-		}
-		else
-		{
-			size = myload_file("rom.bin", SD_DEV, maxrom);
-		}
-		if (size == 0)
-		{
-			puts("CHIP-8 Emulator. Port by Gameblabla. Build 01");
-			puts("CHIP-8 ROM needs to be named ROM.BIN");
-			return 1;
-		}
+		puts("Error : Incorrect filename or failed to load !");
+		return 1;
 	}
 	memcpy(memory + 0x200, maxrom, size);
+	
+	// Set controls according to game
+	memset(KEY_DEFINE, 0, sizeof(KEY_DEFINE));
+	
+	cinst = INST_PER_CYCLE;
+	
+	switch(size)
+	{
+		// Game is breakout
+		case 280:
+			KEY_DEFINE[KEY_CHIP8_LEFT] = 4;
+			KEY_DEFINE[KEY_CHIP8_RIGHT] = 6;
+		break;
+		// Game is Tetris
+		// The falling down key doesn't work OR it's already too fast
+		// TODO FIX
+		case 494:
+			KEY_DEFINE[KEY_CHIP8_LEFT] = 5;
+			KEY_DEFINE[KEY_CHIP8_RIGHT] = 6;
+			
+			KEY_DEFINE[KEY_CHIP8_DOWN] = 3;
+			
+			KEY_DEFINE[KEY_CHIP8_A] = 4; // Rotate
+			KEY_DEFINE[KEY_CHIP8_B] = 2; // Falling Down
+		break;
+		// Game is Puckman
+		case 2356:
+		default:
+			KEY_DEFINE[KEY_CHIP8_LEFT] = 7; //A
+			KEY_DEFINE[KEY_CHIP8_RIGHT] = 8; //S
+			
+			KEY_DEFINE[KEY_CHIP8_UP] = 3; // 3
+			KEY_DEFINE[KEY_CHIP8_DOWN] = 6; //E
+
+			KEY_DEFINE[KEY_CHIP8_A] = 5;
+			KEY_DEFINE[KEY_CHIP8_B] = 7;
+		break;
+	}
 
     /* Load hex font */
     for (temp=0; temp < 80; temp++) 
@@ -202,7 +246,6 @@ int main(int argc, char** argv)
     
     /* Setup some variables */
     running = 1;
-    cinst = INST_PER_CYCLE;
     
 	#ifndef SDL
     clear_screen();
@@ -210,9 +253,9 @@ int main(int argc, char** argv)
 	
 	seed = 1;
     
-    while(running)
+    do
     {
-		//Controls();
+		Controls_chip8();
 		
 		if (paused && next_opcode) cinst = 1;
         for (ii = 0; ii < cinst; ii++) {
@@ -440,97 +483,68 @@ int main(int argc, char** argv)
 				if (!ST) beep();
 			}
         }
-    }
+    } 
+    while (running);
 
+    // Resets hardware (apparently)
+     POKE(0, 0);
+    __asm__("jmp $FFFC");
     
+    return 0;
 }
 
-/*
 
-void Controls()
+
+void Controls_chip8()
 {
 
-#ifdef THREEDO
-	uint32	gButtons;
-	DoControlPad(1, &gButtons, (ControlUp | ControlDown | ControlLeft | ControlRight));
-	
-	
-	if (gButtons & ControlLeft)	
+#ifndef SDL
+	memset(keys, 0, sizeof(keys));
+	for(i=0;i<2;i++)
 	{
-		keys[4] = 1;
-	}
-	else
-	{
-		keys[4] = 0;
-	}
-	
-	if (gButtons & ControlRight)	
-	{
-		keys[6] = 1;
-	}
-	else
-	{
-		keys[6] = 0;
-	}
-	
-	if (gButtons & ControlC)	
-	{
-		keys[12] = 1;
-	}
-	else
-	{
-		keys[12] = 0;
-	}
+		joy[i] = joystick_get(i);
+		if (!(joy[i] & JOY_DPAD_LEFT))
+		{
+			keys[KEY_DEFINE[KEY_CHIP8_LEFT]] = 1;
+		}
+		else if (!(joy[i] & JOY_DPAD_RIGHT))
+		{
+			keys[KEY_DEFINE[KEY_CHIP8_RIGHT]] = 1;
+		}
 
-	if (gButtons & ControlA)	
-	{
-		keys[5] = 1;
-	}
-	else
-	{
-		keys[5] = 0;
-	}
+		if (!(joy[i] & JOY_DPAD_UP))
+		{
+			keys[KEY_DEFINE[KEY_CHIP8_UP]] = 1;
+		}
+		else if (!(joy[i] & JOY_DPAD_DOWN))
+		{
+			keys[KEY_DEFINE[KEY_CHIP8_DOWN]] = 1;
+		}
 
-#elif defined(PCFX)
 
-	Controls();
+		if (!(joy[i] & JOY_A))
+		{
+			keys[KEY_DEFINE[KEY_CHIP8_A]] = 1;
+		}
+		if (!(joy[i] & JOY_B))
+		{
+			keys[KEY_DEFINE[KEY_CHIP8_B]] = 1;
+		}
+		
+		if (!(joy[i] & JOY_X))
+		{
 
-	if (JOYPAD_LEFT)	
-	{
-		keys[4] = 1;
-	}
-	else
-	{
-		keys[4] = 0;
-	}
-	
-	if (JOYPAD_RIGHT)	
-	{
-		keys[6] = 1;
-	}
-	else
-	{
-		keys[6] = 0;
-	}
-	
-	if (JOYPAD_C)	
-	{
-		keys[12] = 1;
-	}
-	else
-	{
-		keys[12] = 0;
-	}
+		}
+		if (!(joy[i] & JOY_Y))
+		{
 
-	if (JOYPAD_A)	
-	{
-		keys[5] = 1;
+		}
+		
+		if (!(joy[i] & JOY_CON_SELECT))
+		{
+			running = 0;
+		}
 	}
-	else
-	{
-		keys[5] = 0;
-	}
-	
 #else
 
         if (SDL_PollEvent(&event)) 
@@ -701,4 +715,4 @@ void Controls()
      
 #endif
        
-}*/
+}
